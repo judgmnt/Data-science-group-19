@@ -134,10 +134,11 @@ def get_object_count():
     columns = ["Objects"]
     return [object_count, columns]
 
-def main():
-    survey_df = pd.read_pickle(r'data/survey.pickle')
-    survey_df = survey_df.astype({"insta_user_id": str})
-    result_df = pd.read_pickle("result_df.pickle")
+# Easy function to filter DF based on columns
+def make_xy(result_df, survey_df, col_subset = []):
+    # col_subset is a list of columns to filter the DF by
+    if len(col_subset) > 0:
+        result_df = result_df[col_subset]
 
     x = []  #training data
     y = []  #label
@@ -149,19 +150,107 @@ def main():
 
         # X label
         x.append(row)
+    return (np.array(x), np.array(y))
 
+def main():
+    # Read data
+    survey_df = pd.read_pickle(r'data/survey.pickle')
+    survey_df = survey_df.astype({"insta_user_id": str})
+    result_df = pd.read_pickle("result_df.pickle")
 
+    # Transform to trainable data
+    [x, y] = make_xy(result_df, survey_df)
+
+    # Models
     from sklearn.model_selection import train_test_split
-
     from sklearn.ensemble import RandomForestRegressor
+    from sklearn.svm import SVR
 
+    ### Train a regressor on all data ###
+    
+    # Random Forest ensemble
     regr = RandomForestRegressor(n_estimators=100)
-    regr.fit(np.array(x), np.array(y))
+    # SVM
+    svr = SVR(gamma='scale', C=1.0, epsilon=0.2)
 
+    # Cross validation
+    k_fold = 10
+    random_forest_total_score = []
+    svm_total_score = []
+    for i in range(k_fold):
+        # Split into train and test
+        x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2)
+        
+        # train models
+        regr.fit(x_train, y_train)
+        svr.fit(x_train, y_train)
+
+        # Print R^2 scores of each model
+        random_forest_score = regr.score(x_test, y_test)
+        svm_result_score = svr.score(x_test, y_test)
+
+        random_forest_total_score.append(random_forest_score)
+        svm_total_score.append(svm_result_score)
+        
+        # Prints intermediate results
+        print("K_fold ", i)
+        # print("Tree: ", random_forest_score)
+        # print("SVM: ", svm_result_score)
+
+    # K fold cross validation results
+    print("\nAverage Random Forest score: ", np.average(random_forest_total_score))
+    print("Average SVM score: ", np.average(svm_total_score))
+    
+
+    ### Show Top features of decision tree
+    print("\nFiltering based on top features ...")
+    # Train decision tree on all data
+    regr.fit(x, y)
     feature_list = []
     for index, col in enumerate(result_df.columns):
         feature_list.append([regr.feature_importances_[index], col])  
-    pprint(sorted(feature_list))
+    
+    n_features = 5
+    top_n_features = np.array(sorted(feature_list))[:,1][-n_features:]
+    bot_n_features = np.array(sorted(feature_list))[:,1][:n_features]
+    print(top_n_features)
+    print()
+
+    # Make new dataframes based on top columns
+    [x, y] = make_xy(result_df, survey_df, top_n_features)
+
+    # Doing Cross validation again with filtered results
+    k_fold = 10
+    random_forest_total_score = []
+    svm_total_score = []
+    for i in range(k_fold):
+        # Split into train and test
+        x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2)
+        
+        # train models
+        regr.fit(x_train, y_train)
+        svr.fit(x_train, y_train)
+
+        # Print R^2 scores of each model
+        random_forest_score = regr.score(x_test, y_test)
+        svm_result_score = svr.score(x_test, y_test)
+
+        random_forest_total_score.append(random_forest_score)
+        svm_total_score.append(svm_result_score)
+        
+        # Prints intermediate results
+        print("K_fold ", i)
+        # print("Tree: ", random_forest_score)
+        # print("SVM: ", svm_result_score)
+
+    # K fold cross validation results
+    print("\nAverage Random Forest score: ", np.average(random_forest_total_score))
+    print("Average SVM score: ", np.average(svm_total_score))
+
+
+
+    ################## WARNING ####################
+    ###### DONT LOOK AT THE CRAP BELOW HERE #######
 
     #################### CREATE FINAL DF
     # [total_data, total_cols] = get_user_image_data()
@@ -217,12 +306,11 @@ def main():
 
     # df.to_pickle("image_df.pickle")
 
-    index_list = df.index
-    print()
 
 if __name__ == '__main__':
     main()
 
+# Feature list
 # # anp_df 325941 ['image_id', 'anp_label', 'anp_sentiment', 'emotion_score', 'emotion_label']
 # print("\nanp_df", len(anp_df), list(anp_df.columns))
 
