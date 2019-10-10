@@ -137,16 +137,14 @@ def get_object_count():
 def main():
     survey_df = pd.read_pickle(r'data/survey.pickle')
     survey_df = survey_df.astype({"insta_user_id": str})
-    df = pd.read_pickle("image_df.pickle")
     result_df = pd.read_pickle("result_df.pickle")
-    users = set(survey_df["insta_user_id"])
 
-    x = []
-    y = []
-    for index, row in result_df.iterrows():
+    x = []  #training data
+    y = []  #label
+    for index, row in result_df.iterrows():  #index is user_id
         # Y label
         label = survey_df[survey_df["insta_user_id"] == index]["PERMA"].values[0]
-        if np.isnan(label): continue
+        if np.isnan(label): continue  #if the label doesn't exist (for the users with no perma score)
         y.append(label)
 
         # X label
@@ -162,7 +160,7 @@ def main():
 
     feature_list = []
     for index, col in enumerate(result_df.columns):
-        feature_list.append([regr.feature_importances_[index], col])
+        feature_list.append([regr.feature_importances_[index], col])  
     pprint(sorted(feature_list))
 
     #################### CREATE FINAL DF
